@@ -5,7 +5,7 @@ public class Proverb {
     private String author;
     private int id;
 
-    public Proverb(String content, String author, int id) {
+    public Proverb(int id, String content, String author) {
         this.id = id;
         this.content = content;
         this.author = author;

@@ -1,9 +1,8 @@
 package org.back;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Scanner;
 
 public class Main {
@@ -13,18 +12,9 @@ public class Main {
     static ArrayList<Proverb> proverbs = new ArrayList<>();
     static int lastId = 0;
 
-    // 맨 처음에 파일 저장용 경로가 없으면 폴더를 생성
-    private static void createUploadDirectory() {
-        File uploadDir = new File(UPLOAD_DIR);
-        if (!uploadDir.exists() && !uploadDir.mkdirs()){
-            throw new RuntimeException("에러: Could not create the directory.");
-        }
-    }
-
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
-        createUploadDirectory();
-
+        readFiles();
         System.out.println("== 명언 앱 ==");
         while (true) {
             System.out.print("명령) ");
@@ -59,7 +49,7 @@ public class Main {
         System.out.print("작가 : ");
         String author = sc.nextLine();
         //명언 데이터 생성
-        Proverb newProv = new Proverb(content, author, ++lastId);
+        Proverb newProv = new Proverb(++lastId, content, author);
         proverbs.add(newProv);
         //파일 저장
         try (FileWriter fw = new FileWriter(UPLOAD_DIR + lastId + ".json")) {
@@ -166,12 +156,63 @@ public class Main {
         }
     }
 
-    //lastId 저장
+    //종료 전, lastId 저장
     private static void saveLastId(){
         try (FileWriter fw = new FileWriter(UPLOAD_DIR + "lastId.txt")) {
             fw.write(lastId + "\n");
         } catch (IOException e) {
             throw new RuntimeException("에러: lastId.txt 파일 생성 실패.");
+        }
+    }
+
+    // 앱 시작 시에 파일 읽기 - 좀 길고 복잡. 나중에 여러 개로 나눠? 일단은 이거 하나 길게 두는게 좋을지도.
+    private static void readFiles() {
+
+        // 맨 처음에 파일 경로가 없으면 폴더 생성
+        File uploadDir = new File(UPLOAD_DIR);
+        if (!uploadDir.exists() && !uploadDir.mkdirs()){
+            throw new RuntimeException("에러: Could not create the directory.");
+        }
+        File[] files =uploadDir.listFiles();
+        if (files == null) {
+            return;
+        }
+        //스트림 사용해 처리
+        Arrays.stream(files)
+                //data.json 말고 각 숫자로 된 각 파일 읽기.
+                .filter(file -> file.getName().matches("\\d+\\.json"))
+                //명언 파일 파싱하고 저장하는 람다
+                .forEach(file -> {
+                    try (Scanner proSc = new Scanner(file)){
+                        int id = Integer.parseInt(file.getName().replace(".json", ""));
+                        String content = "", author = "";
+                        while (proSc.hasNextLine()) {
+                            String line = proSc.nextLine().trim();
+                            if (line.contains("\"content\":")) {
+                                int startIdx = line.indexOf("\"", line.lastIndexOf(":")) + 1;
+                                int endIdx = line.lastIndexOf("\"");
+                                content = line.substring(startIdx, endIdx);
+                            } else if (line.contains("\"author\":")) {
+                                int startIdx = line.indexOf("\"", line.lastIndexOf(":")) + 1;
+                                int endIdx = line.lastIndexOf("\"");
+                                author = line.substring(startIdx, endIdx);                            }
+                        }
+                        proverbs.add(new Proverb(id, content, author));
+                    }
+                    catch (IOException e) {
+                        System.out.println("에러: reading file: " + file.getName());
+                    }
+                });
+
+        //lastFile
+        File lastIdFile = new File(UPLOAD_DIR + "lastId.txt");
+
+        try (Scanner lastIdSc = new Scanner(lastIdFile)) {
+            lastId = lastIdSc.nextInt();
+        } catch (FileNotFoundException e) {
+            if(!proverbs.isEmpty()){
+                throw new RuntimeException("에러: cannot reading lastId file");
+            }
         }
     }
 }
